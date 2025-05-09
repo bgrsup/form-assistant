@@ -1,12 +1,19 @@
 import streamlit as st
 import requests
 import json
-
-APIFY_TOKEN = os.environ["APIFY_TOKEN"]
-APIFY_ACTOR_ID = os.environ["APIFY_ACTOR_ID"]
+import os
 
 st.set_page_config(page_title="Compliance Form Assistant")
 st.title("📄 Compliance Form Assistant")
+
+# ✅ DEBUG: Check for missing secrets or token issues
+try:
+    APIFY_TOKEN = os.environ["APIFY_TOKEN"]
+    APIFY_ACTOR_ID = os.environ["APIFY_ACTOR_ID"]
+    st.success("✅ Secrets loaded successfully!")
+except KeyError as e:
+    st.error(f"❌ Missing environment variable: {e}")
+    st.stop()
 
 uploaded_file = st.file_uploader("Upload a DOCX file to auto-fill", type=["docx"])
 
