@@ -24,11 +24,20 @@ if uploaded_file:
         f.write(uploaded_file.getbuffer())
 
     st.info("Uploading to Apify key-value store...")
-    store_res = requests.post(
-        f"https://api.apify.com/v2/key-value-stores?token={APIFY_TOKEN}",
-        json={"name": "form-upload-store"}
-    )
+store_res = requests.post(
+    f"https://api.apify.com/v2/key-value-stores?token={APIFY_TOKEN}",
+    json={"name": "form-upload-store"}
+)
+
+if store_res.status_code != 201:
+    st.error(f"Failed to create key-value store. Status: {store_res.status_code}, Body: {store_res.text}")
+    st.stop()
+
+try:
     store_id = store_res.json()["data"]["_id"]
+except KeyError:
+    st.error(f"Unexpected response from Apify: {store_res.text}")
+    st.stop()
 
     requests.put(
         f"https://api.apify.com/v2/key-value-stores/{store_id}/records/INPUT_FILE?token={APIFY_TOKEN}",
