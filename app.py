@@ -10,10 +10,10 @@ st.title("📄 Compliance Form Assistant")
 def log(message):
     st.text(f"🪵 {message}")
 
-# ✅ Check for secrets
+# ✅ Load secrets
 try:
     APIFY_TOKEN = os.environ["APIFY_TOKEN"]
-    APIFY_ACTOR_ID = os.environ["APIFY_ACTOR_ID"]
+    APIFY_TASK_ID = os.environ["APIFY_TASK_ID"]  # e.g. "your-username~form-assistant-default"
     st.success("✅ Secrets loaded successfully!")
 except KeyError as e:
     st.error(f"❌ Missing environment variable: {e}")
@@ -29,11 +29,11 @@ if uploaded_file:
 
     log("Saved uploaded file")
 
-    # Upload to Apify actor INPUT endpoint
-    log("Uploading file to Apify INPUT slot...")
+    # Upload to Apify task input
+    log("Uploading file to Apify Task input...")
     with open("temp_upload.docx", "rb") as file_data:
         upload_res = requests.put(
-            f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/input?token={APIFY_TOKEN}",
+            f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK_ID}/input?token={APIFY_TOKEN}",
             files={"value": file_data},
             headers={"Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
         )
@@ -42,18 +42,16 @@ if uploaded_file:
         st.error(f"Upload failed: {upload_res.text}")
         st.stop()
 
-    # Run the actor (no input field needed)
-    st.info("Running Apify actor...")
+    # Start the Apify task
+    st.info("Running Apify task...")
     try:
-        actor_call = requests.post(
-            f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-            json={}
+        task_run = requests.post(
+            f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK_ID}/runs?token={APIFY_TOKEN}",
         )
-        log("Actor started")
-        run_id = actor_call.json()["data"]["id"]
-        log(f"Run ID: {run_id}")
+        run_id = task_run.json()["data"]["id"]
+        log(f"Task Run ID: {run_id}")
     except Exception as e:
-        st.error(f"Failed to start actor: {e}")
+        st.error(f"Failed to start task: {e}")
         st.stop()
 
     status = "RUNNING"
@@ -62,12 +60,12 @@ if uploaded_file:
         status = status_res.json()["data"]["status"]
         log(f"Run status: {status}")
 
-    log("Actor complete")
+    log("Actor task complete")
 
     try:
-        default_store_id = status_res.json()["data"]["defaultKeyValueStoreId"]
+        store_id = status_res.json()["data"]["defaultKeyValueStoreId"]
         output = requests.get(
-            f"https://api.apify.com/v2/key-value-stores/{default_store_id}/records/output.json?token={APIFY_TOKEN}"
+            f"https://api.apify.com/v2/key-value-stores/{store_id}/records/output.json?token={APIFY_TOKEN}"
         )
         output_json = output.json()
         st.json(output_json)
@@ -88,5 +86,5 @@ if uploaded_file:
         st.success("No unanswered questions! Your form is ready.")
 
     st.subheader("📎 Download Partially Filled Form")
-    filled_url = f"https://api.apify.com/v2/key-value-stores/{default_store_id}/records/{output_json['filled_file'].split('/')[-1]}?token={APIFY_TOKEN}"
+    filled_url = f"https://api.apify.com/v2/key-value-stores/{store_id}/records/{output_json['filled_file'].split('/')[-1]}?token={APIFY_TOKEN}"
     st.markdown(f"[Download Filled Form]({filled_url})")
