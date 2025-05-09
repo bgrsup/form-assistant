@@ -59,10 +59,16 @@ if uploaded_file:
 
     st.info("Running Apify actor...")
     try:
-        actor_call = requests.post(
-            f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-            json={"input": {"useInputFile": True}, "memory": 2048, "build": "latest", "keyValueStoreId": store_id}
-        )
+actor_call = requests.post(
+    f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
+    json={
+        "input": {"useInputFile": True},
+        "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "memory": 2048,
+        "build": "latest",
+        "keyValueStoreId": store_id
+    }
+)
         log("Actor started")
         run_id = actor_call.json()["data"]["id"]
         log(f"Run ID: {run_id}")
