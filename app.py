@@ -55,9 +55,11 @@ if uploaded_file:
     task_res = requests.post(
         f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK_ID}/runs?token={APIFY_TOKEN}",
         json={
-        "keyValueStoreId": kv_store_id,
-        "input": { "useInputFile": True }
-},
+            "keyValueStoreId": kv_store_id,
+            "input": { "useInputFile": True }
+        },
+        headers={"Content-Type": "application/json"}
+    )
         headers={"Content-Type": "application/json"}
     )
     run_id = task_res.json()["data"]["id"]
