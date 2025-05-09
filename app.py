@@ -29,8 +29,8 @@ store_res = requests.post(
     json={"name": "form-upload-store"}
 )
 
-if store_res.status_code != 201:
-    st.error(f"Failed to create key-value store. Status: {store_res.status_code}, Body: {store_res.text}")
+if store_res.status_code not in [200, 201]:
+    st.error(f"Unexpected status from Apify: {store_res.status_code}. Response: {store_res.text}")
     st.stop()
 
 try:
