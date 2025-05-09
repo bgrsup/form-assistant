@@ -29,14 +29,13 @@ store_res = requests.post(
     json={"name": "form-upload-store"}
 )
 
-if store_res.status_code not in [200, 201]:
-    st.error(f"Unexpected status from Apify: {store_res.status_code}. Response: {store_res.text}")
-    st.stop()
+res_json = store_res.json()
 
 try:
-    store_id = store_res.json()["data"]["_id"]
+    store_id = res_json["data"]["_id"]
 except KeyError:
-    st.error(f"Unexpected response from Apify: {store_res.text}")
+    st.error("Apify response missing expected 'data._id'. Full response:")
+    st.json(res_json)
     st.stop()
 
     requests.put(
