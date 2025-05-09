@@ -43,10 +43,11 @@ if uploaded_file:
             files={"value": ("form.docx", file_data)},
             headers={"Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
         )
-    log(f"File upload status: {put_res.status_code}")
-    if put_res.status_code != 200:
-        st.error(f"Upload failed: {put_res.text}")
-        st.stop()
+if put_res.status_code not in [200, 201]:
+    st.error(f"Upload failed: {put_res.status_code} — {put_res.text}")
+    st.stop()
+else:
+    log("✅ File uploaded successfully to Apify KV store.")
 
     # Run the Apify task using this store
     run_res = requests.post(
