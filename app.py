@@ -29,7 +29,7 @@ if uploaded_file:
 
     log("Saved uploaded file")
 
-    # Upload directly to actor input endpoint
+    # Upload to Apify actor INPUT endpoint
     log("Uploading file to Apify INPUT slot...")
     with open("temp_upload.docx", "rb") as file_data:
         upload_res = requests.put(
@@ -38,12 +38,16 @@ if uploaded_file:
             headers={"Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
         )
     log(f"Upload response status: {upload_res.status_code}")
+    if upload_res.status_code != 200:
+        st.error(f"Upload failed: {upload_res.text}")
+        st.stop()
 
+    # Run the actor (no input field needed)
     st.info("Running Apify actor...")
     try:
         actor_call = requests.post(
             f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-            json={},
+            json={}
         )
         log("Actor started")
         run_id = actor_call.json()["data"]["id"]
