@@ -29,45 +29,21 @@ if uploaded_file:
 
     log("Saved uploaded file")
 
-    st.info("Uploading to Apify key-value store...")
-    store_res = requests.post(
-        f"https://api.apify.com/v2/key-value-stores?token={APIFY_TOKEN}",
-        json={"name": "form-upload-store"}
-    )
-    log(f"Store create response: {store_res.status_code}")
-
-    try:
-        res_json = store_res.json()
-        st.json(res_json)  # Show full response for debug
-        store_id = res_json["data"]["id"]
-    except Exception as e:
-        st.error(f"Failed to extract store ID: {e}")
-        st.stop()
-
-    log(f"Using store_id: {store_id}")
-
-    try:
-        requests.put(
-            f"https://api.apify.com/v2/key-value-stores/{store_id}/records/INPUT_FILE?token={APIFY_TOKEN}",
-            files={"value": ("form.docx", open("temp_upload.docx", "rb"))},
+    # Upload directly to actor input endpoint
+    log("Uploading file to Apify INPUT slot...")
+    with open("temp_upload.docx", "rb") as file_data:
+        upload_res = requests.put(
+            f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/input?token={APIFY_TOKEN}",
+            files={"value": file_data},
             headers={"Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
         )
-        log("File uploaded to KV store")
-    except Exception as e:
-        st.error(f"Failed to upload to KV store: {e}")
-        st.stop()
+    log(f"Upload response status: {upload_res.status_code}")
 
     st.info("Running Apify actor...")
     try:
         actor_call = requests.post(
             f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-            json={
-                "input": {"useInputFile": True},
-                "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "memory": 2048,
-                "build": "latest",
-                "keyValueStoreId": store_id
-            }
+            json={},
         )
         log("Actor started")
         run_id = actor_call.json()["data"]["id"]
@@ -85,8 +61,9 @@ if uploaded_file:
     log("Actor complete")
 
     try:
+        default_store_id = status_res.json()["data"]["defaultKeyValueStoreId"]
         output = requests.get(
-            f"https://api.apify.com/v2/key-value-stores/{store_id}/records/output.json?token={APIFY_TOKEN}"
+            f"https://api.apify.com/v2/key-value-stores/{default_store_id}/records/output.json?token={APIFY_TOKEN}"
         )
         output_json = output.json()
         st.json(output_json)
@@ -107,5 +84,5 @@ if uploaded_file:
         st.success("No unanswered questions! Your form is ready.")
 
     st.subheader("📎 Download Partially Filled Form")
-    filled_url = f"https://api.apify.com/v2/key-value-stores/{store_id}/records/{output_json['filled_file'].split('/')[-1]}?token={APIFY_TOKEN}"
+    filled_url = f"https://api.apify.com/v2/key-value-stores/{default_store_id}/records/{output_json['filled_file'].split('/')[-1]}?token={APIFY_TOKEN}"
     st.markdown(f"[Download Filled Form]({filled_url})")
