@@ -42,7 +42,7 @@ if uploaded_file:
     with open("temp_upload.docx", "rb") as file_data:
         put_res = requests.put(
             f"https://api.apify.com/v2/key-value-stores/{kv_store_id}/records/INPUT?token={APIFY_TOKEN}",
-            files={"value": ("input.docx", file_data)},
+            files={"value": ("INPUT", file_data)},
             headers={"Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
         )
     log(f"📥 Upload status: {put_res.status_code}")
