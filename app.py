@@ -2,8 +2,8 @@ import streamlit as st
 import requests
 import json
 
-APIFY_TOKEN = "your-apify-token-here"
-APIFY_ACTOR_ID = "your-actor-id-here"
+APIFY_TOKEN = os.environ["APIFY_TOKEN"]
+APIFY_ACTOR_ID = os.environ["APIFY_ACTOR_ID"]
 
 st.set_page_config(page_title="Compliance Form Assistant")
 st.title("📄 Compliance Form Assistant")
