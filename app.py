@@ -6,14 +6,13 @@ import os
 st.set_page_config(page_title="Compliance Form Assistant")
 st.title("📄 Compliance Form Assistant")
 
-# Logging helper
 def log(message):
     st.text(f"🪵 {message}")
 
 # ✅ Load secrets
 try:
     APIFY_TOKEN = os.environ["APIFY_TOKEN"]
-    APIFY_TASK_ID = os.environ["APIFY_TASK_ID"]  # e.g. "your-username~form-assistant-default"
+    APIFY_TASK_ID = os.environ["APIFY_TASK_ID"]  # Format: username~task-name
     st.success("✅ Secrets loaded successfully!")
 except KeyError as e:
     st.error(f"❌ Missing environment variable: {e}")
@@ -29,31 +28,35 @@ if uploaded_file:
 
     log("Saved uploaded file")
 
-    # Upload to Apify task input
-    log("Uploading file to Apify Task input...")
+    # Create a new key-value store
+    store_res = requests.post(
+        f"https://api.apify.com/v2/key-value-stores?token={APIFY_TOKEN}",
+        json={"name": "streamlit-form-upload"}
+    )
+    store_id = store_res.json()["data"]["id"]
+    log(f"Created store ID: {store_id}")
+
+    # Upload file as INPUT
     with open("temp_upload.docx", "rb") as file_data:
-        upload_res = requests.put(
-            f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK_ID}/input?token={APIFY_TOKEN}",
-            files={"value": file_data},
+        put_res = requests.put(
+            f"https://api.apify.com/v2/key-value-stores/{store_id}/records/INPUT?token={APIFY_TOKEN}",
+            files={"value": ("form.docx", file_data)},
             headers={"Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
         )
-    log(f"Upload response status: {upload_res.status_code}")
-    if upload_res.status_code != 200:
-        st.error(f"Upload failed: {upload_res.text}")
+    log(f"File upload status: {put_res.status_code}")
+    if put_res.status_code != 200:
+        st.error(f"Upload failed: {put_res.text}")
         st.stop()
 
-    # Start the Apify task
-    st.info("Running Apify task...")
-    try:
-        task_run = requests.post(
-            f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK_ID}/runs?token={APIFY_TOKEN}",
-        )
-        run_id = task_run.json()["data"]["id"]
-        log(f"Task Run ID: {run_id}")
-    except Exception as e:
-        st.error(f"Failed to start task: {e}")
-        st.stop()
+    # Run the Apify task using this store
+    run_res = requests.post(
+        f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK_ID}/runs?token={APIFY_TOKEN}",
+        json={"keyValueStoreId": store_id}
+    )
+    run_id = run_res.json()["data"]["id"]
+    log(f"Run ID: {run_id}")
 
+    # Poll status
     status = "RUNNING"
     while status in ["RUNNING", "READY"]:
         status_res = requests.get(f"https://api.apify.com/v2/actor-runs/{run_id}?token={APIFY_TOKEN}")
@@ -62,6 +65,7 @@ if uploaded_file:
 
     log("Actor task complete")
 
+    # Retrieve output
     try:
         store_id = status_res.json()["data"]["defaultKeyValueStoreId"]
         output = requests.get(
@@ -73,6 +77,7 @@ if uploaded_file:
         st.error(f"Failed to retrieve output: {e}")
         st.stop()
 
+    # Display results
     st.subheader("🤖 Unanswered Questions")
     unanswered = output_json.get("unknown_questions", {})
     if unanswered:
