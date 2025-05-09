@@ -60,8 +60,6 @@ if uploaded_file:
         },
         headers={"Content-Type": "application/json"}
     )
-        headers={"Content-Type": "application/json"}
-    )
     run_id = task_res.json()["data"]["id"]
     log(f"🧠 Task Run ID: {run_id}")
 
