@@ -32,7 +32,7 @@ store_res = requests.post(
 res_json = store_res.json()
 
 try:
-    store_id = res_json["data"]["_id"]
+    store_id = res_json["data"]["id"]
 except KeyError:
     st.error("Apify response missing expected 'data._id'. Full response:")
     st.json(res_json)
