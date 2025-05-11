@@ -48,9 +48,13 @@ if uploaded_file:
     log(f"📤 Uploaded to S3 → {S3_BUCKET_NAME}/{s3_key}")
 
     # ✅ Trigger Apify actor with S3 info
+    # ✅ Trigger Apify actor
     run = requests.post(
         f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-        json={"input": {"S3_BUCKET_NAME": S3_BUCKET_NAME, "S3_OBJECT_KEY": s3_key}},
+        json={"input": {
+            "S3_BUCKET_NAME": bucket_name,
+            "S3_OBJECT_KEY": s3_key
+        }},
         headers={"Content-Type": "application/json"}
     ).json()
     run_id = run["data"]["id"]
