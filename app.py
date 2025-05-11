@@ -1,4 +1,4 @@
-# ✅ FINAL Streamlit app.py with full debug + dataset checks
+# ✅ FULL FINAL OPTION A — streamlit + apify-client 2.5 compatible
 
 import streamlit as st
 import requests
@@ -26,39 +26,30 @@ if uploaded_file:
         f.write(uploaded_file.getbuffer())
     log("✅ File saved locally")
 
-    # ✅ Create dataset
-    dataset_res = requests.post(
-        f"https://api.apify.com/v2/datasets?token={APIFY_TOKEN}",
-        json={"name": "form-upload-dataset"}
-    )
-    dataset = dataset_res.json()
-    dataset_id = dataset["data"]["id"]
-    log(f"📦 Dataset created: {dataset_id}")
+    # ✅ Create KV Store
+    kv = requests.post(
+        f"https://api.apify.com/v2/key-value-stores?token={APIFY_TOKEN}",
+        json={"name": "form-upload-store"}
+    ).json()
+    kv_id = kv["data"]["id"]
+    log(f"📦 KV store created: {kv_id}")
 
-    # ✅ Upload file to dataset
+    # ✅ Upload file to INPUT slot
     with open("temp.docx", "rb") as f:
-        upload_res = requests.post(
-            f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_TOKEN}",
+        put = requests.put(
+            f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/INPUT?token={APIFY_TOKEN}",
             files={"value": ("input.docx", f)}
         )
-    log(f"📥 File uploaded: {upload_res.status_code}")
+    log(f"📥 File uploaded: {put.status_code}")
 
-    # ✅ Validate dataset contents
-    items = requests.get(
-        f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_TOKEN}"
-    ).json()
-    if not items:
-        st.error("❌ Dataset is empty after upload. Aborting.")
+    if put.status_code not in [200, 201]:
+        st.error("❌ Upload to INPUT failed")
         st.stop()
-    log(f"✅ Dataset contains {len(items)} item(s)")
 
-    # ✅ Trigger Actor with datasetId
-    actor_payload = {"input": {"datasetId": dataset_id}}
-    log(f"📤 Launching Actor with payload: {actor_payload}")
-
+    # ✅ Trigger Actor
     run = requests.post(
         f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-        json=actor_payload,
+        json={"input": {"keyValueStoreId": kv_id}},
         headers={"Content-Type": "application/json"}
     ).json()
     run_id = run["data"]["id"]
@@ -68,13 +59,27 @@ if uploaded_file:
     status = "RUNNING"
     while status in ["RUNNING", "READY"]:
         time.sleep(3)
-        poll = requests.get(
+        status = requests.get(
             f"https://api.apify.com/v2/actor-runs/{run_id}?token={APIFY_TOKEN}"
-        ).json()
-        status = poll["data"]["status"]
-        log(f"⏳ Actor status: {status}")
+        ).json()["data"]["status"]
+        log(f"⏳ Status: {status}")
 
     st.success("✅ Actor finished!")
-    st.info(f"Actor run ID: {run_id}")
-    st.info(f"Dataset ID: {dataset_id}")
-    st.markdown(f"View dataset in Apify Console: https://console.apify.com/datasets/{dataset_id}")
+
+    # ✅ Get results
+    out = requests.get(
+        f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/output.json?token={APIFY_TOKEN}"
+    ).json()
+
+    st.subheader("🤖 Unanswered Questions")
+    unanswered = out.get("unknown_questions", {})
+    for q in unanswered:
+        st.text_input(q)
+
+    st.subheader("📥 Download")
+    try:
+        file_name = out["filled_file"]
+        file_url = f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/{file_name}?token={APIFY_TOKEN}"
+        st.markdown(f"[Download Filled Form]({file_url})")
+    except KeyError:
+        st.error("❌ No filled_file in output.")
