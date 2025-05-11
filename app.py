@@ -32,12 +32,15 @@ if uploaded_file:
     kv_id = kv_res.json()["data"]["id"]
     log(f"🗂 KV store created: {kv_id}")
 
-    # Upload file to KV store as INPUT
+    # ✅ Upload file to KV store as INPUT using data= (pure file upload)
     with open("temp_upload.docx", "rb") as f:
-        put_res = requests.put(
-            f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/INPUT?token={APIFY_TOKEN}",
-            files={"value": ("input.docx", f)}
-        )
+        binary_data = f.read()
+
+    put_res = requests.put(
+        f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/INPUT?token={APIFY_TOKEN}",
+        data=binary_data,
+        headers={"Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+    )
     if put_res.status_code not in [200, 201]:
         st.error("❌ Upload failed")
         st.stop()
