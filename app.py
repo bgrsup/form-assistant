@@ -1,4 +1,4 @@
-# ✅ FINAL Streamlit app.py for Dataset Model
+# ✅ FINAL Streamlit app.py with full debug + dataset checks
 
 import streamlit as st
 import requests
@@ -27,25 +27,38 @@ if uploaded_file:
     log("✅ File saved locally")
 
     # ✅ Create dataset
-    dataset = requests.post(
+    dataset_res = requests.post(
         f"https://api.apify.com/v2/datasets?token={APIFY_TOKEN}",
         json={"name": "form-upload-dataset"}
-    ).json()
+    )
+    dataset = dataset_res.json()
     dataset_id = dataset["data"]["id"]
     log(f"📦 Dataset created: {dataset_id}")
 
     # ✅ Upload file to dataset
     with open("temp.docx", "rb") as f:
-        requests.post(
+        upload_res = requests.post(
             f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_TOKEN}",
             files={"value": ("input.docx", f)}
         )
-    log("📥 File uploaded to dataset")
+    log(f"📥 File uploaded: {upload_res.status_code}")
+
+    # ✅ Validate dataset contents
+    items = requests.get(
+        f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_TOKEN}"
+    ).json()
+    if not items:
+        st.error("❌ Dataset is empty after upload. Aborting.")
+        st.stop()
+    log(f"✅ Dataset contains {len(items)} item(s)")
 
     # ✅ Trigger Actor with datasetId
+    actor_payload = {"input": {"datasetId": dataset_id}}
+    log(f"📤 Launching Actor with payload: {actor_payload}")
+
     run = requests.post(
         f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-        json={"input": {"datasetId": dataset_id}},          # 👈 FIXED: passes datasetId
+        json=actor_payload,
         headers={"Content-Type": "application/json"}
     ).json()
     run_id = run["data"]["id"]
@@ -55,10 +68,11 @@ if uploaded_file:
     status = "RUNNING"
     while status in ["RUNNING", "READY"]:
         time.sleep(3)
-        status = requests.get(
+        poll = requests.get(
             f"https://api.apify.com/v2/actor-runs/{run_id}?token={APIFY_TOKEN}"
-        ).json()["data"]["status"]
-        log(f"⏳ Status: {status}")
+        ).json()
+        status = poll["data"]["status"]
+        log(f"⏳ Actor status: {status}")
 
     st.success("✅ Actor finished!")
     st.info(f"Actor run ID: {run_id}")
