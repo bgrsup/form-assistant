@@ -1,85 +1,51 @@
-# ✅ FULL FINAL OPTION A — streamlit + apify-client 2.5 compatible
+# ✅ Streamlit S3 Uploader App
 
 import streamlit as st
-import requests
+import boto3
 import os
-import time
+import uuid
 
-st.set_page_config(page_title="Compliance Form Assistant")
-st.title("📄 Compliance Form Assistant")
+st.set_page_config(page_title="Compliance File Uploader")
+st.title("📄 Compliance File Uploader to S3")
 
 def log(msg):
     st.text(f"🪵 {msg}")
 
+# ✅ Load AWS credentials from Streamlit secrets
 try:
-    APIFY_TOKEN = os.environ["APIFY_TOKEN"]
-    APIFY_ACTOR_ID = os.environ["APIFY_ACTOR_ID"]
-    st.success("✅ Secrets loaded")
+    AWS_ACCESS_KEY_ID = os.environ["AWS_ACCESS_KEY_ID"]
+    AWS_SECRET_ACCESS_KEY = os.environ["AWS_SECRET_ACCESS_KEY"]
+    AWS_REGION = os.environ["AWS_REGION"]
+    S3_BUCKET_NAME = os.environ["S3_BUCKET_NAME"]
+    st.success("✅ AWS secrets loaded")
 except KeyError as e:
-    st.error(f"❌ Missing env var: {e}")
+    st.error(f"❌ Missing AWS env var: {e}")
     st.stop()
 
-uploaded_file = st.file_uploader("Upload DOCX file", type=["docx"])
+# ✅ Initialize S3 client
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION
+)
+
+uploaded_file = st.file_uploader("Upload your form file (DOCX, PDF, XLSX etc.)", type=["docx", "pdf", "xlsx"])
 
 if uploaded_file:
-    with open("temp.docx", "wb") as f:
+    file_id = str(uuid.uuid4())
+    file_name = f"{file_id}-{uploaded_file.name}"
+    
+    # Save temp file
+    with open(file_name, "wb") as f:
         f.write(uploaded_file.getbuffer())
-    log("✅ File saved locally")
+    log(f"✅ File saved locally as {file_name}")
 
-    # ✅ Create KV Store
-    kv = requests.post(
-        f"https://api.apify.com/v2/key-value-stores?token={APIFY_TOKEN}",
-        json={"name": "form-upload-store"}
-    ).json()
-    kv_id = kv["data"]["id"]
-    log(f"📦 KV store created: {kv_id}")
-
-    # ✅ Upload file to INPUT slot
-    with open("temp.docx", "rb") as f:
-        put = requests.put(
-            f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/INPUT?token={APIFY_TOKEN}",
-            files={"value": ("input.docx", f)}
-        )
-    log(f"📥 File uploaded: {put.status_code}")
-
-    if put.status_code not in [200, 201]:
-        st.error("❌ Upload to INPUT failed")
-        st.stop()
-
-    # ✅ Trigger Actor
-    run = requests.post(
-        f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-        json={"input": {"keyValueStoreId": kv_id}},
-        headers={"Content-Type": "application/json"}
-    ).json()
-    run_id = run["data"]["id"]
-    log(f"🚀 Actor started: {run_id}")
-
-    # ✅ Poll Actor
-    status = "RUNNING"
-    while status in ["RUNNING", "READY"]:
-        time.sleep(3)
-        status = requests.get(
-            f"https://api.apify.com/v2/actor-runs/{run_id}?token={APIFY_TOKEN}"
-        ).json()["data"]["status"]
-        log(f"⏳ Status: {status}")
-
-    st.success("✅ Actor finished!")
-
-    # ✅ Get results
-    out = requests.get(
-        f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/output.json?token={APIFY_TOKEN}"
-    ).json()
-
-    st.subheader("🤖 Unanswered Questions")
-    unanswered = out.get("unknown_questions", {})
-    for q in unanswered:
-        st.text_input(q)
-
-    st.subheader("📥 Download")
+    # Upload to S3
     try:
-        file_name = out["filled_file"]
-        file_url = f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/{file_name}?token={APIFY_TOKEN}"
-        st.markdown(f"[Download Filled Form]({file_url})")
-    except KeyError:
-        st.error("❌ No filled_file in output.")
+        s3.upload_file(file_name, S3_BUCKET_NAME, file_name)
+        file_url = f"https://{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{file_name}"
+        st.success(f"✅ File uploaded to S3 bucket `{S3_BUCKET_NAME}`")
+        st.markdown(f"[📥 Download your file]({file_url})")
+    except Exception as e:
+        st.error(f"❌ S3 upload failed: {e}")
