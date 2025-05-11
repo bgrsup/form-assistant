@@ -24,36 +24,24 @@ if uploaded_file:
         f.write(uploaded_file.getbuffer())
     log("✅ File saved locally")
 
-    # Create KV store
-    kv_res = requests.post(
-        f"https://api.apify.com/v2/key-value-stores?token={APIFY_TOKEN}",
-        json={"name": "form-upload"}
-    )
-    kv_id = kv_res.json()["data"]["id"]
-    log(f"🗂 KV store created: {kv_id}")
-
-    # ✅ Upload file to KV store as INPUT using data= (pure file upload)
+    # Upload file to INPUT_FILE slot of actor task
     with open("temp_upload.docx", "rb") as f:
-        binary_data = f.read()
-
-    put_res = requests.put(
-        f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/INPUT?token={APIFY_TOKEN}",
-        data=binary_data,
-        headers={"Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
-    )
-    if put_res.status_code not in [200, 201]:
-        st.error("❌ Upload failed")
+        upload_res = requests.put(
+            f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK_ID}/input?token={APIFY_TOKEN}",
+            files={"value": ("input.docx", f)}
+        )
+    if upload_res.status_code not in [200, 201]:
+        st.error(f"❌ Upload to INPUT_FILE failed: {upload_res.text}")
         st.stop()
 
-    # Start actor with KV store
+    # Start actor task
     run_res = requests.post(
         f"https://api.apify.com/v2/actor-tasks/{APIFY_TASK_ID}/runs?token={APIFY_TOKEN}",
-        json={"keyValueStoreId": kv_id},
         headers={"Content-Type": "application/json"}
     )
     run_id = run_res.json()["data"]["id"]
 
-    # Poll for actor completion
+    # Poll until finished
     status = "RUNNING"
     while status in ["RUNNING", "READY"]:
         status = requests.get(
@@ -61,10 +49,23 @@ if uploaded_file:
         ).json()["data"]["status"]
         log(f"⏳ Actor status: {status}")
 
-    # Get output
-    output = requests.get(
-        f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/output.json?token={APIFY_TOKEN}"
+    st.success("✅ Actor task finished!")
+
+    # Get default Key-Value Store ID from run
+    run_info = requests.get(
+        f"https://api.apify.com/v2/actor-runs/{run_id}?token={APIFY_TOKEN}"
     ).json()
+    store_id = run_info["data"]["defaultKeyValueStoreId"]
+
+    # Get output.json
+    try:
+        output = requests.get(
+            f"https://api.apify.com/v2/key-value-stores/{store_id}/records/output.json?token={APIFY_TOKEN}"
+        ).json()
+        st.json(output)
+    except Exception as e:
+        st.error(f"❌ Failed to load output.json: {e}")
+        st.stop()
 
     # Show unanswered questions
     st.subheader("🤖 Unanswered Questions")
@@ -73,6 +74,9 @@ if uploaded_file:
 
     # Download link
     st.subheader("📥 Download")
-    file_name = output["filled_file"].split("/")[-1]
-    download_url = f"https://api.apify.com/v2/key-value-stores/{kv_id}/records/{file_name}?token={APIFY_TOKEN}"
-    st.markdown(f"[Download Filled Form]({download_url})")
+    try:
+        file_name = output["filled_file"].split("/")[-1]
+        download_url = f"https://api.apify.com/v2/key-value-stores/{store_id}/records/{file_name}?token={APIFY_TOKEN}"
+        st.markdown(f"[📄 Download Filled Form]({download_url})")
+    except Exception:
+        st.error("❌ Could not determine filled file URL from output.")
