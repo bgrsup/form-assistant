@@ -1,8 +1,9 @@
-# ✅ Streamlit app.py for Dataset model (Option E)
+# ✅ FINAL Streamlit app.py for Dataset Model
 
 import streamlit as st
 import requests
 import os
+import time
 
 st.set_page_config(page_title="Compliance Form Assistant")
 st.title("📄 Compliance Form Assistant")
@@ -33,27 +34,25 @@ if uploaded_file:
     dataset_id = dataset["data"]["id"]
     log(f"📦 Dataset created: {dataset_id}")
 
-    # ✅ Push file URL to dataset (local path for example purposes)
-    # Ideally you'd upload to S3 or external storage
-    record = {"file_name": "temp.docx"}
-    res = requests.post(
-        f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_TOKEN}",
-        files={"value": ("temp.docx", open("temp.docx", "rb"))}
-    )
-    log(f"✅ File pushed to dataset: {res.status_code}")
+    # ✅ Upload file to dataset
+    with open("temp.docx", "rb") as f:
+        requests.post(
+            f"https://api.apify.com/v2/datasets/{dataset_id}/items?token={APIFY_TOKEN}",
+            files={"value": ("input.docx", f)}
+        )
+    log("📥 File uploaded to dataset")
 
     # ✅ Trigger Actor with datasetId
     run = requests.post(
         f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
-        json={"input": {"datasetId": dataset_id}},
+        json={"input": {"datasetId": dataset_id}},          # 👈 FIXED: passes datasetId
         headers={"Content-Type": "application/json"}
     ).json()
     run_id = run["data"]["id"]
     log(f"🚀 Actor started: {run_id}")
 
-    # ✅ Poll Actor until finished
+    # ✅ Poll Actor
     status = "RUNNING"
-    import time
     while status in ["RUNNING", "READY"]:
         time.sleep(3)
         status = requests.get(
@@ -62,6 +61,6 @@ if uploaded_file:
         log(f"⏳ Status: {status}")
 
     st.success("✅ Actor finished!")
-
-    # ✅ Read output dataset from Actor (or Actor output)
-    st.info("You can now query the processed dataset.")
+    st.info(f"Actor run ID: {run_id}")
+    st.info(f"Dataset ID: {dataset_id}")
+    st.markdown(f"View dataset in Apify Console: https://console.apify.com/datasets/{dataset_id}")
