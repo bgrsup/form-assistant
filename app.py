@@ -1,4 +1,4 @@
-# app.py - Streamlit S3 handoff model
+# app.py - Streamlit S3 handoff model (FINAL VERSION)
 
 import streamlit as st
 import boto3
@@ -31,6 +31,7 @@ if uploaded_file:
     file_name = uploaded_file.name
     local_file = f"temp_{file_name}"
 
+    # ✅ Save file locally
     with open(local_file, "wb") as f:
         f.write(uploaded_file.getbuffer())
     log(f"✅ File saved locally as {local_file}")
@@ -48,11 +49,10 @@ if uploaded_file:
     log(f"📤 Uploaded to S3 → {S3_BUCKET_NAME}/{s3_key}")
 
     # ✅ Trigger Apify actor with S3 info
-    # ✅ Trigger Apify actor
     run = requests.post(
         f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ID}/runs?token={APIFY_TOKEN}",
         json={"input": {
-            "S3_BUCKET_NAME": bucket_name,
+            "S3_BUCKET_NAME": S3_BUCKET_NAME,       # ✅ CORRECTED
             "S3_OBJECT_KEY": s3_key
         }},
         headers={"Content-Type": "application/json"}
